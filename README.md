@@ -85,7 +85,7 @@ graph TD
 ---
 
 ## ⚙️ Configuration Properties
-Customize execution limits in `src/main/resources/application.properties`:
+Customize properties in `src/main/resources/application.properties`:
 ```properties
 # Enable/Disable decoupling queue
 app.use-queue=false
@@ -93,9 +93,10 @@ app.use-queue=false
 # Port Configuration
 server.port=8085
 
-# Docker daemon named pipe socket
-docker.host=npipe:////./pipe/dockerDesktopLinuxEngine
+# Docker Daemon Connection (Optional - automatically detected based on OS if commented out)
+# docker.host=unix:///var/run/docker.sock
 ```
+
 
 ---
 

@@ -10,23 +10,26 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.net.URI;
 import java.time.Duration;
 
 @Configuration
 public class DockerConfig {
 
-    @Value("${docker.host:npipe:////./pipe/docker_engine}")
+    @Value("${docker.host:}")
     private String dockerHost;
 
     @Bean
     public DockerClient dockerClient() {
-        DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                .withDockerHost(dockerHost)
-                .build();
+        DefaultDockerClientConfig.Builder configBuilder = DefaultDockerClientConfig.createDefaultConfigBuilder();
+
+        if (dockerHost != null && !dockerHost.trim().isEmpty()) {
+            configBuilder.withDockerHost(dockerHost);
+        }
+
+        DockerClientConfig config = configBuilder.build();
 
         DockerHttpClient httpClient = new ZerodepDockerHttpClient.Builder()
-                .dockerHost(URI.create(dockerHost))
+                .dockerHost(config.getDockerHost())
                 .sslConfig(config.getSSLConfig())
                 .maxConnections(100)
                 .connectionTimeout(Duration.ofSeconds(30))
