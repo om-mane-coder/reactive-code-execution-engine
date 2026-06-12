@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sandbox Live Execution Engine</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --accent-color: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.4);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --border-color: #1f2937;
+            --terminal-bg: #030712;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            padding: 2rem 4rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        header h1 span {
+            font-size: 0.8rem;
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            padding: 0.2rem 0.6rem;
+            border-radius: 99px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            -webkit-text-fill-color: initial;
+        }
+
+        .main-container {
+            max-width: 1400px;
+            width: 100%;
+            padding: 3rem 2rem;
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 2rem;
+            flex-grow: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .workspace-panel {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        select {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            outline: none;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        .btn-run {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.8rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px 0 var(--accent-glow);
+        }
+
+        .btn-run:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px 0 var(--accent-glow);
+        }
+
+        .btn-run:active {
+            transform: translateY(0);
+        }
+
+        .editor-container {
+            position: relative;
+            flex-grow: 1;
+            min-height: 450px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+            min-height: 450px;
+            background-color: var(--terminal-bg);
+            color: #34d399;
+            font-family: 'Fira Code', monospace;
+            font-size: 1rem;
+            padding: 1.5rem;
+            border: none;
+            resize: none;
+            outline: none;
+            line-height: 1.6;
+        }
+
+        .output-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .terminal {
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            flex-grow: 1;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.95rem;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.8);
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid #1f2937;
+            margin-bottom: 1rem;
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot.red { background-color: var(--error); }
+        .dot.yellow { background-color: var(--warning); }
+        .dot.green { background-color: var(--success); }
+
+        .terminal-title {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .terminal-screen {
+            flex-grow: 1;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .terminal-screen .log { color: var(--text-secondary); }
+        .terminal-screen .success { color: var(--success); }
+        .terminal-screen .error { color: var(--error); }
+        .terminal-screen .info { color: #60a5fa; }
+        .terminal-screen .warning { color: var(--warning); }
+
+        .status-tracker {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .status-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .status-step {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .status-step.active {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .status-step.completed {
+            color: var(--success);
+        }
+
+        .status-indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            display: inline-block;
+            position: relative;
+        }
+
+        .status-step.active .status-indicator {
+            border-color: var(--accent-color);
+            background-color: var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        .status-step.completed .status-indicator {
+            border-color: var(--success);
+            background-color: var(--success);
+        }
+
+        .metric-row {
+            margin-top: 1rem;
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+
+        .metric-val {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Sandbox Live Execution Engine <span>Queue Enabled</span></h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Workspace Panel (Editor) -->
+        <div class="workspace-panel">
+            <div class="panel-header">
+                <div class="panel-title">Write Code</div>
+                <div class="controls">
+                    <select id="language-select">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript</option>
+                    </select>
+                    <button class="btn-run" id="btn-run">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        Run Sandbox Code
+                    </button>
+                </div>
+            </div>
+            <div class="editor-container">
+                <textarea id="editor" spellcheck="false"></textarea>
+            </div>
+        </div>
+
+        <!-- Output & Status Panel -->
+        <div class="output-panel">
+            <!-- Real-Time Pipeline Tracker -->
+            <div class="status-tracker">
+                <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Live Sandbox pipeline</h3>
+                <ul class="status-list">
+                    <li class="status-step" id="step-received">
+                        <span class="status-indicator"></span>
+                        <span>Received & Registered Request</span>
+                    </li>
+                    <li class="status-step" id="step-queued">
+                        <span class="status-indicator"></span>
+                        <span>Decoupled in Queue (RabbitMQ)</span>
+                    </li>
+                    <li class="status-step" id="step-executing">
+                        <span class="status-indicator"></span>
+                        <span>Isolated Container Runtime Execution</span>
+                    </li>
+                    <li class="status-step" id="step-completed">
+                        <span class="status-indicator"></span>
+                        <span>Pipeline Completed & Cleaned Up</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Terminal Output -->
+            <div class="terminal">
+                <div class="terminal-header">
+                    <div class="terminal-dots">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                    <span class="terminal-title">Terminal Console</span>
+                </div>
+                <div class="terminal-screen" id="terminal-screen">Welcome to the Sandbox Execution Environment. Enter some code and hit Run.</div>
+                
+                <div class="metric-row" id="metric-row" style="display: none;">
+                    <div>Time: <span class="metric-val" id="metric-time">-</span></div>
+                    <div>Exit Code: <span class="metric-val" id="metric-exit">-</span></div>
+                    <div>Timeout: <span class="metric-val" id="metric-timeout">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const templates = {
+            python: `import time\n\nprint("Hello from python sandbox!")\n\n# Let's perform a fast computation\nsum_val = sum(i for i in range(1_000_000))\nprint(f"Computed sum of 1 million integers: {sum_val}")\n`,
+            javascript: `console.log("Hello from NodeJS sandbox!");\n\nconst startTime = Date.now();\n\n// Simulate a quick task\nsetTimeout(() => {\n    console.log("Asynchronous execution within the secure sandbox successful!");\n    console.log(\`Finished task in \${Date.now() - startTime}ms\`);\n}, 500);\n`
+        };
+
+        const editor = document.getElementById('editor');
+        const langSelect = document.getElementById('language-select');
+        const btnRun = document.getElementById('btn-run');
+        const screen = document.getElementById('terminal-screen');
+        
+        // Status elements
+        const steps = {
+            RECEIVED: document.getElementById('step-received'),
+            QUEUED: document.getElementById('step-queued'),
+            EXECUTING: document.getElementById('step-executing'),
+            COMPLETED: document.getElementById('step-completed')
+        };
+
+        // Initialize editor template
+        editor.value = templates[langSelect.value];
+
+        langSelect.addEventListener('change', () => {
+            editor.value = templates[langSelect.value];
+        });
+
+        function resetStatusSteps() {
+            Object.values(steps).forEach(step => {
+                step.className = 'status-step';
+            });
+            document.getElementById('metric-row').style.display = 'none';
+        }
+
+        function setStepActive(status) {
+            resetStatusSteps();
+            const keys = Object.keys(steps);
+            const index = keys.indexOf(status);
+            
+            for (let i = 0; i < keys.length; i++) {
+                if (i < index) {
+                    steps[keys[i]].classList.add('completed');
+                } else if (i === index) {
+                    steps[keys[i]].classList.add('active');
+                }
+            }
+        }
+
+        btnRun.addEventListener('click', () => {
+            const code = editor.value;
+            const language = langSelect.value;
+
+            screen.innerHTML = '<span class="info">Connecting to WebSocket endpoint...</span>\n';
+            resetStatusSteps();
+            btnRun.disabled = true;
+
+            const wsScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsScheme}//${window.location.host}/ws/execute`;
+            const socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                screen.innerHTML += '<span class="info">Connected. Sending payload...</span>\n';
+                const payload = JSON.stringify({ code, language });
+                socket.send(payload);
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.status === 'RECEIVED') {
+                    setStepActive('RECEIVED');
+                    screen.innerHTML += `<span class="info">[Pipeline] ${data.message}</span>\n`;
+                } else if (data.status === 'QUEUED') {
+                    setStepActive('QUEUED');
+                    screen.innerHTML += `<span class="info">[Pipeline] ${data.message}</span>\n`;
+                } else if (data.status === 'EXECUTING') {
+                    setStepActive('EXECUTING');
+                    screen.innerHTML += `<span class="info">[Pipeline] ${data.message}</span>\n`;
+                } else if (data.status === 'COMPLETED') {
+                    // Update steps
+                    Object.values(steps).forEach(step => step.classList.add('completed'));
+                    
+                    const result = data.result;
+                    screen.innerHTML = '';
+                    
+                    if (result.stdout) {
+                        screen.innerHTML += `<span class="success">${result.stdout}</span>\n`;
+                    }
+                    if (result.stderr) {
+                        screen.innerHTML += `<span class="error">${result.stderr}</span>\n`;
+                    }
+                    if (!result.stdout && !result.stderr) {
+                        screen.innerHTML += `<span class="log">[Empty Output]</span>\n`;
+                    }
+
+                    // Render metrics
+                    document.getElementById('metric-row').style.display = 'flex';
+                    document.getElementById('metric-time').innerText = `${result.executionTimeMs}ms`;
+                    document.getElementById('metric-exit').innerText = result.exitCode;
+                    document.getElementById('metric-timeout').innerText = result.timeout ? 'Yes' : 'No';
+
+                    socket.close();
+                } else if (data.status === 'ERROR') {
+                    screen.innerHTML += `<span class="error">Error: ${data.message}</span>\n`;
+                    socket.close();
+                }
+            };
+
+            socket.onerror = (error) => {
+                screen.innerHTML += `<span class="error">WebSocket Error. Please make sure the server is running and Docker is started.</span>\n`;
+                btnRun.disabled = false;
+            };
+
+            socket.onclose = () => {
+                btnRun.disabled = false;
+            };
+        });
+    </script>
+</body>
+</html>
