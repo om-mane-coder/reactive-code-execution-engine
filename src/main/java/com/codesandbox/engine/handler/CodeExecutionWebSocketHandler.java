@@ -5,11 +5,13 @@ import com.codesandbox.engine.dto.ExecutionProgressEvent;
 import com.codesandbox.engine.dto.ExecutionRequest;
 import com.codesandbox.engine.dto.QueuedExecutionRequest;
 import com.codesandbox.engine.registry.ExecutionRegistry;
+import com.codesandbox.engine.service.DockerSandboxService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.AmqpTemplate;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
@@ -20,13 +22,25 @@ import reactor.core.publisher.Mono;
 import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class CodeExecutionWebSocketHandler implements WebSocketHandler {
 
-    private final AmqpTemplate amqpTemplate;
+    private final ObjectProvider<AmqpTemplate> amqpTemplateProvider;
     private final ExecutionRegistry executionRegistry;
+    private final DockerSandboxService sandboxService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${app.use-queue:false}")
+    private boolean useQueue;
+
+    public CodeExecutionWebSocketHandler(
+            ObjectProvider<AmqpTemplate> amqpTemplateProvider,
+            ExecutionRegistry executionRegistry,
+            DockerSandboxService sandboxService) {
+        this.amqpTemplateProvider = amqpTemplateProvider;
+        this.executionRegistry = executionRegistry;
+        this.sandboxService = sandboxService;
+    }
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
@@ -38,26 +52,41 @@ public class CodeExecutionWebSocketHandler implements WebSocketHandler {
                                 ExecutionRequest request = objectMapper.readValue(payload, ExecutionRequest.class);
                                 String submissionId = UUID.randomUUID().toString();
 
-                                QueuedExecutionRequest queuedRequest = new QueuedExecutionRequest(
-                                        submissionId,
-                                        request.getCode(),
-                                        request.getLanguage()
-                                );
+                                AmqpTemplate amqpTemplate = amqpTemplateProvider.getIfAvailable();
 
-                                // Register reactive sink for completion event
-                                Mono<com.codesandbox.engine.model.ExecutionResult> resultMono =
-                                        executionRegistry.register(submissionId).asMono();
+                                if (useQueue && amqpTemplate != null) {
+                                    QueuedExecutionRequest queuedRequest = new QueuedExecutionRequest(
+                                            submissionId,
+                                            request.getCode(),
+                                            request.getLanguage()
+                                    );
 
-                                return Flux.concat(
-                                        emitEvent(session, "RECEIVED", "Request received, mapping submission ID: " + submissionId),
-                                        emitEvent(session, "QUEUED", "Queueing request to execution broker..."),
-                                        Mono.fromRunnable(() -> {
-                                            log.info("Publishing task to queue for submissionId: {}", submissionId);
-                                            amqpTemplate.convertAndSend(RabbitMQConfig.QUEUE_NAME, queuedRequest);
-                                        }).then(emitEvent(session, "EXECUTING", "Worker is executing in isolated sandbox...")),
-                                        resultMono.flatMapMany(result -> emitFinalEvent(session, result))
-                                                .doFinally(signalType -> executionRegistry.remove(submissionId))
-                                );
+                                    Mono<com.codesandbox.engine.model.ExecutionResult> resultMono =
+                                            executionRegistry.register(submissionId).asMono();
+
+                                    return Flux.concat(
+                                            emitEvent(session, "RECEIVED", "Request received, mapping submission ID: " + submissionId),
+                                            emitEvent(session, "QUEUED", "Queueing request to execution broker..."),
+                                            Mono.fromRunnable(() -> {
+                                                log.info("Publishing task to queue for submissionId: {}", submissionId);
+                                                amqpTemplate.convertAndSend(RabbitMQConfig.QUEUE_NAME, queuedRequest);
+                                            }).then(emitEvent(session, "EXECUTING", "Worker is executing in isolated sandbox...")),
+                                            resultMono.flatMapMany(result -> emitFinalEvent(session, result))
+                                                    .doFinally(signalType -> executionRegistry.remove(submissionId))
+                                    );
+                                } else {
+                                    // Direct Local Sandbox Execution Mode (Fallback when RabbitMQ is disabled/unavailable)
+                                    String modeMsg = (amqpTemplate == null) 
+                                            ? "Request received (Direct fallback: RabbitMQ is offline)"
+                                            : "Request received (Direct Mode)";
+                                    return Flux.concat(
+                                            emitEvent(session, "RECEIVED", modeMsg),
+                                            emitEvent(session, "QUEUED", "Bypassing queue (Direct Execution)..."),
+                                            emitEvent(session, "EXECUTING", "Worker is executing in isolated sandbox..."),
+                                            sandboxService.executeCode(request.getCode(), request.getLanguage())
+                                                    .flatMapMany(result -> emitFinalEvent(session, result))
+                                    );
+                                }
                             } catch (JsonProcessingException e) {
                                 log.error("Failed to parse WebSocket execution request", e);
                                 return emitEvent(session, "ERROR", "Invalid payload format. Expected {code: ..., language: ...}");
