@@ -74,13 +74,20 @@ graph TD
     cd reactive-code-execution-engine
     ```
 
-2.  **Run with Gradle**:
+2.  **Run with Docker Compose** (Recommended for full decoupled queue testing):
+    ```bash
+    docker compose up --build
+    ```
+    *This will spin up both the Spring Boot app and RabbitMQ, auto-enabling queue decoupling.*
+
+3.  **Run with Gradle** (Direct Execution Fallback):
     ```bash
     ./gradlew bootRun
     ```
 
-3.  **Open the Web Dashboard**:
+4.  **Open the Web Dashboard**:
     Go to [http://localhost:8085/](http://localhost:8085/) to access the premium interactive developer workspace.
+
 
 ---
 
