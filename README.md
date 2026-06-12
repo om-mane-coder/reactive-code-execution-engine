@@ -4,7 +4,7 @@ A production-grade, asynchronous, and secure **Remote Code Execution Sandbox & C
 
 Designed for high-throughput, non-blocking I/O (handling thousands of concurrent compilations without thread exhaustion), this engine executes untrusted python/javascript code in isolated, resource-constrained Docker containers.
 
-![Dashboard Preview](screenshot.png)
+![Dashboard Preview](demo.webp)
 
 ---
 
